@@ -1,6 +1,6 @@
 ## LIN Library
 
-Library and examples for LIN [(Local Interconnect Network)](https://en.wikipedia.org/wiki/Local_Interconnect_Network) on Arduino. Developed for the Macchina M2.  Can be modified for any Arduino board with UART available and any LIN slave.
+Library and examples for LIN [(Local Interconnect Network)](https://en.wikipedia.org/wiki/Local_Interconnect_Network) on Arduino. Modified from original development, now targeted for Teensy 3.6 driving 2x MCP2004 LIN transcievers out of Serial2 and Serial3.  Can be modified for any Arduino board with UART available and any LIN slave by initializing the lin_stack object with the apropriate Serial port and Wake outputs. 
 
 #### Install
 
@@ -9,7 +9,7 @@ Library and examples for LIN [(Local Interconnect Network)](https://en.wikipedia
 
 #### EXAMPLES
 
-Several example sketches are included in the LIN Library to demonstrate typical usage:
+EXAMPLES ARE DEPREICATED - Several example sketches are included in the LIN Library to demonstrate typical usage:
 
 * `Lin2Lin` M2 acts as the Sniffer – when traffic on one LIN channel is detected, incoming data is saved and then sent to another LIN channel with no modification. Arduino Due with simple 1-bit ADC is used as Master Node on first LIN bus and Ambient Light Module is used as a slave on another LIN bus.
 
@@ -36,5 +36,7 @@ http://ww1.microchip.com/downloads/en/DeviceDoc/51714a.pdf
 
 * TJA1021 Datasheet and NXP’s LIN protocol description.
 http://cache.nxp.com/documents/data_sheet/TJA1021.pdf?pspll=1
+
+* MCP2004 Datasheet used to modified hardware-driven parameters from the TJA1021. 
 
 More information about LIN can be found in those documents.
