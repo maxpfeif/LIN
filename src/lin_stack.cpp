@@ -19,20 +19,20 @@
  *  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- *  LIN STACK for TJA1021 
- *  v2.0
+ *  LIN STACK for MCP2004 
+ *  v1.0
  *
  *  Short description: 
- *  Comunication stack for LIN and TJA1021 LIN transceiver. 
+ *  Comunication stack for LIN and MCP2004 LIN transceiver. 
  *  Can be modified for any Arduino board with UART available and any LIN slave.
  *  
- *  Author: Blaž Pongrac B.S., RoboSap, Institute of Technology, Ptuj (www.robosap-institut.eu)
- *  
- *  Arduino IDE 1.6.9
- *  RoboSap, Institute of Technology, September 2016
+ *	Forked from Blaž Pongrac B.S., RoboSap, Institute of Technology, Ptuj (www.robosap-institut.eu)
+ *	Authored by MAX PFEIFFER, September 2018.   
  */ 
 
 #include <lin_stack.h>
+// Including the Teensy hardware serial module 
+#include <HardwareSerial.h>
 
 /* LIN PACKET:
    It consist of:
@@ -49,17 +49,30 @@
    Checksum - inverted 256 checksum; data bytes are sumed up and then inverted
 */
 
-// CONSTRUCTORS
-lin_stack::lin_stack(byte Ch){
-	sleep_config(Ch); // Configurating Sleep pin for transceiver
+/*-----------------------------------------------------------------------------------*/ 
+
+// NEW CONSTRUCTORS
+// Initialize the lin_stack object with the desired serial channel, wakeup pin and identity. 
+lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, byte ident, float baud_def){
+	ch = serial_ch; // Saving the serial channel to a private variable 
+	wakePin = wake; // Saving the wake pin to a private variable  
+	identByte = ident; // Saving the identy to the private variable
+	baud_rate = baud_def;	// Save the baud rate to a private var 
+	period = int(baud_rate/108.5);	// calculate the period from baud rate  
+	sleep(FALSE);	// Initialize the transciever in wake state
 }
 
-lin_stack::lin_stack(byte Ch, byte ident){
-	sleep_config(Ch); // Configuration of Sleep pin for transceiver
-	identByte = ident; // saving idet to private variable
-	sleep(1); // Transceiver is always in Normal Mode
+// Initialize the lin_stack object with just the channel and wakeup pin
+lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def) {
+	ch = serial_ch; // Saving the serial channel to a private variable 
+	wakePin = wake; // Saving the wake pin to a private variable 
+	baud_rate = baud_def;	// Save the baud rate to a private var 
+	period = int(baud_rate/108.5);	// calculate the period from baud rate  
+	sleep(FALSE); //Initialize the transciever in wake state 
 }
 
+/*-----------------------------------------------------------------------------------*/ 
+// TODO: ADJUST THESE TO CONFORM TO NEW CONFOGIURATIONS 
 // PUBLIC METHODS
 // WRITE methods
 // Creates a LIN packet and then send it via USART(Serial) interface.
@@ -70,47 +83,71 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 	suma = suma + 1;
 	byte checksum = 255 - suma;
 	// Start interface
-	sleep(1); // Go to Normal mode
-	// Synch Break
+	sleep(FALSE); // wakeup the device 
+
+	// Synch Break -- need this as the beginning of the LIN frame 
 	serial_pause(13);
-	// Send data via Serial interface
-	if(ch==1){ // For LIN1 or Serial1
-		Serial1.begin(bound_rate); // config Serial
-		Serial1.write(0x55); // write Synch Byte to serial
-		Serial1.write(ident); // write Identification Byte to serial
+
+	// Send data via Serial interface, depending on which serial port is being used 
+	if(ch==1){						// If serial channel = 1
+		Serial1.begin(baud_rate); 	// Begin serial at the lin_stack's baud 
+		Serial1.write(0x55); 		// write Synch Byte to serial
+		Serial1.write(ident); 		// write Identification Byte to serial
 		for(int i=0;i<data_size;i++) Serial1.write(data[i]); // write data to serial
-		Serial1.write(checksum); // write Checksum Byte to serial
-		Serial1.end(); // clear Serial config
-	}else if(ch==2){ // For LIN2 or Serial2
-		Serial2.begin(bound_rate); // config Serial
-		Serial2.write(0x55); // write Synch Byte to serial
-		Serial2.write(ident); // write Identification Byte to serialv
-		for(int i=0;i<data_size;i++) Serial2.write(data[i]); // write data to serial
-		Serial2.write(checksum);// write Checksum Byte to serial
-		Serial2.end(); // clear Serial config
+		Serial1.write(checksum); 	// write Checksum Byte to serial
+		Serial1.end(); 				// clear Serial config
+	}else if(ch==2){ 
+		Serial2.begin(baud_rate); 
+		Serial2.write(0x55); 
+		Serial2.write(ident); 
+		for(int i=0;i<data_size;i++) Serial2.write(data[i]); 
+		Serial2.write(checksum);
+		Serial2.end(); 
+	} else if(ch==3){
+		Serial3.begin(baud_rate);	
+		Serial3.write(0x55);	
+		Serial3.write(ident);
+		for(int i=0;i<data_size;i++) Serial3.write(data[i]);
+		Serial3.write(checksum);
+		Serial3.end();
+	} else if(ch==4){				
+		Serial4.begin(baud_rate);	
+		Serial4.write(0x55);		
+		Serial4.write(ident);
+		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
+		Serial4.write(checksum);
+		Serial4.end();
 	}
-	sleep(0); // Go to Sleep mode
+	sleep(TRUE); // Go to Sleep mode
 	return 1;
 }
 
 int lin_stack::writeRequest(byte ident){
 	// Create Header
-	byte header[2]= {0x55, ident};
+	byte header[2]= {0x55, ident}; // ident is the identy of the device you wish to receive data from 
 	// Start interface
-	sleep(1); // Go to Normal mode
+	sleep(FALSE); // Wakeup the transciever 
 	// Synch Break
 	serial_pause(13);
 	// Send data via Serial interface
-	if(ch==1){ // For LIN1 or Serial1
-		Serial1.begin(bound_rate); // config Serial
-		Serial1.write(header,2); // write data to serial
-		Serial1.end(); // clear Serial config
-	}else if(ch==2){ // For LIN2 or Serial2
-		Serial2.begin(bound_rate); // config Serial
-		Serial2.write(header,2); // write data to serial
-		Serial2.end(); // clear Serial config
+	if(ch==1){ 						// if we are using channel 1 
+		Serial1.begin(baud_rate);	// configure serial at desired baud rate
+		Serial1.write(header,2); 	// write data to the serial port using recursive write 
+		Serial1.end(); 				// clear Serial config
+	}else if(ch==2){
+		Serial2.begin(baud_rate); 
+		Serial2.write(header,2); 
+		Serial2.end();
+	} else if(ch==3) {
+		Serial3.begin(baud_rate);
+		Serial3.write(header,2);
+		Serial3.end();
+	} else if (ch==4){
+		Serial4.begin(baud_rate);
+		Serial4.write(header,2);
+		Serial4.end();
 	}
-	sleep(0); // Go to Sleep mode
+	sleep(TRUE); // Go to Sleep mode
 	return 1;
 }
 
@@ -121,51 +158,71 @@ int lin_stack::writeResponse(byte data[], byte data_size){
 	suma = suma + 1;
 	byte checksum = 255 - suma;
 	// Start interface
-	sleep(1); // Go to Normal mode
+	sleep(FALSE); // Go to Normal mode
 	// Send data via Serial interface
-	if(ch==1){ // For LIN1 or Serial1
-		Serial1.begin(bound_rate); // config Serial
+	if(ch==1){ 							// if we are using serial1
+		Serial1.begin(baud_rate); 		// initialize the port at the correct rate 
 		Serial1.write(data, data_size); // write data to serial
 		Serial1.write(checksum); // write data to serial
 		Serial1.end(); // clear Serial config
-	}else if(ch==2){ // For LIN2 or Serial2
-		Serial2.begin(bound_rate); // config Serial
-		Serial2.write(data, data_size); // write data to serial
-		Serial2.write(checksum); // write data to serial
-		Serial2.end(); // clear Serial config
+	}else if(ch==2){ 
+		Serial2.begin(baud_rate);
+		Serial2.write(data, data_size); 
+		Serial2.write(checksum); 
+		Serial2.end(); 
+	} else if(ch==3) {
+		Serial3.begin(baud_rate);
+		Serial3.write(data,data_size);
+		Serial3.write(checksum);
+		Serial3.end();
+	} else if(ch==4) {
+		Serial4.begin(baud_rate);
+		Serial4.write(data,data_size);
+		Serial4.write(checksum);
+		Serial4.end();
 	}
-	sleep(0); // Go to Sleep mode
+	sleep(TRUE); // Go to Sleep mode
 	return 1;
 }
 
 int lin_stack::writeStream(byte data[], byte data_size){
 	// Start interface
-	sleep(1); // Go to Normal mode
+	sleep(FALSE); // Go to Normal mode
 	// Synch Break
 	serial_pause(13);
 	// Send data via Serial interface
-	if(ch==1){ // For LIN1 or Serial1
-		Serial1.begin(bound_rate); // config Serial
+	if(ch==1){ 
+		Serial1.begin(baud_rate);
 		for(int i=0;i<data_size;i++) Serial1.write(data[i]);
-		Serial1.end(); // clear Serial config
-	}else if(ch==2){ // For LIN2 or Serial2
-		Serial2.begin(bound_rate); // config Serial
+		Serial1.end();
+	}else if(ch==2){
+		Serial2.begin(baud_rate); 
 		for(int i=0;i<data_size;i++) Serial2.write(data[i]);
-		Serial2.end(); // clear Serial config
+		Serial2.end(); 
+	} else if(ch==3){
+		Serial3.begin(baud_rate);
+		for(int i=0;i<data_size;i++) Serial3.write(data[i]);
+		Serial3.end(); 
+	} else if(ch==4){
+		Serial4.begin(baud_rate);
+		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
+		Serial4.end(); 
 	}
-	sleep(0); // Go to Sleep mode
+	sleep(TRUE); // Go to Sleep mode
 	return 1;
 }
 
 // READ methods
 // Read LIN traffic and then proces it.
-int lin_stack::setSerial(){ // Only needed when receiving signals
-	if(ch==1){ // For LIN1 (Channel 1)
-		Serial1.begin(10417); // Configure Serial1
-		PIOA->PIO_PUER = PIO_PA10; // We need software Pull-Up because there is no hardware Pull-Up resistor
-	} else if(ch==2){ // For LIN2 (Channel 2)
-		Serial2.begin(10417); // Configure Serial1
-		PIOA->PIO_PUER = PIO_PA12; // We need software Pull-Up because there is no hardware Pull-Up resistor
+int lin_stack::setSerial(){ // Only needed when receiving signals, note there are no internall pull ups here now, hardware may need one. 
+	if(ch==1){ 
+		Serial1.begin(baud_rate); 
+	} else if(ch==2){ 
+		Serial2.begin(baud_rate);
+	} else if(ch==3){
+		Serial3.begin(baud_rate);
+	} else if(ch==4){
+		Serial4.begin(baud_rate);
 	}
 }
 
@@ -183,8 +240,8 @@ int lin_stack::read(byte data[], byte data_size){
 				return -1;
 			}	
 		}
-	}else if(ch==2){ // For LIN2 or Serial2
-		if(Serial2.read() != -1){ // Check if there is an event on LIN bus
+	}else if(ch==2){ 
+		if(Serial2.read() != -1){ 
 			Serial2.readBytes(rec,data_size+3);
 			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
 				for(int j=0;j<data_size;j++){
@@ -195,7 +252,32 @@ int lin_stack::read(byte data[], byte data_size){
 				return -1;
 			}	
 		}
+	}else if(ch==3){ 
+		if(Serial3.read() != -1){ 
+			Serial3.readBytes(rec,data_size+3);
+			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
+				for(int j=0;j<data_size;j++){
+				data[j] = rec[j+2];
+				}
+				return 1;
+			}else{
+				return -1;
+			}	
+		}
+	}else if(ch==4){ 
+		if(Serial4.read() != -1){ 
+			Serial4.readBytes(rec,data_size+3);
+			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
+				for(int j=0;j<data_size;j++){
+				data[j] = rec[j+2];
+				}
+				return 1;
+			}else{
+				return -1;
+			}	
+		}
 	}
+
 	return 0;
 }
 
@@ -209,9 +291,28 @@ int lin_stack::readStream(byte data[],byte data_size){
 			}
 			return 1;
 		}
-	}else if(ch==2){ // For LIN2 or Serial2
-		if(Serial2.read() != -1){ // Check if there is an event on LIN bus
+	}else if(ch==2){ 
+		if(Serial2.read() != -1){ 
 			Serial2.readBytes(data,data_size);
+			for(int j=0;j<data_size;j++){
+				data[j] = rec[j];
+			}
+			return 1;
+		}
+	}else if(ch==3){ 
+		if(Serial3.read() != -1){ 
+			Serial3.readBytes(data,data_size);
+			for(int j=0;j<data_size;j++){
+				data[j] = rec[j];
+			}
+			return 1;
+		}
+	}else if(ch==4){ 
+		if(Serial4.read() != -1){ 
+			Serial4.readBytes(data,data_size);
+			for(int j=0;j<data_size;j++){
+				data[j] = rec[j];
+			}
 			return 1;
 		}
 	}
@@ -220,51 +321,45 @@ int lin_stack::readStream(byte data[],byte data_size){
 
 
 // PRIVATE METHODS
+
+//come back to the serial_pause method, this will likely need to be adjusted but not sure what to do with this yet...
+// needs to be correctly pulling the line low, not sure how to do this at hardware level without 
+// and delay influencing the transmission but the easiest thing seems to be to pull the pin low 
+// manually, then high again after the micros delay, allowing the pin to be recaptured as a Serial pin
+
+// Another alternative to this would be figuring out how to send the serial 13 bits of 0, i.e. 
+// directly sending it some hex or binary. 
+
 int lin_stack::serial_pause(int no_bits){
-	// Calculate delay needed for 13 bits, depends on bound rate
+	// Calculate delay needed for 13 bits, depends on baud 
 	unsigned int del = period*no_bits; // delay for number of bits (no-bits) in microseconds, depends on period
-	if(ch=2){
-		PIOA->PIO_PER = PIO_PA13; // enable PIO register
-		PIOA->PIO_OER = PIO_PA13; // enable PA13 as output
-		PIOA->PIO_CODR = PIO_PA13; // clear PA13
+	if(ch=1){
+		// tx is pin 1 
+		digitalWrite(1, LOW); // should be able to pull this low with out initializing the pin...
 		delayMicroseconds(del); // delay
-		PIOA->PIO_SODR = PIO_PA13; // set pin high
-		PIOA->PIO_PDR = PIO_PA13; // clear configuration for PIO, needs to be done because Serial wont work with it
-	}else if(ch=1){
-		PIOA->PIO_PER = PIO_PA11; // enable PIO register
-		PIOA->PIO_OER = PIO_PA11; // enable PA11 as output
-		PIOA->PIO_CODR = PIO_PA11; // clear PA11
+	}else if(ch=2){
+		digitalWrite(10, LOW);
 		delayMicroseconds(del); // delay
-		PIOA->PIO_SODR = PIO_PA11; // set pin high
-		PIOA->PIO_PDR = PIO_PA11; // clear configuration for PIO, needs to be done because Serial wont work with it
+	} else if(ch=3){
+		digitalWrite(8, LOW);
+		delayMicroseconds(del);
+	} else if(ch=4){
+		digitalWrite(32, LOW);
+		delayMicroseconds(del);
 	}
 	return 1;
 }
 
-int lin_stack::sleep(byte sleep_state){
-	if(sleep_state==1){ // Go to Normal mode
-		if(ch==1) PIOB->PIO_SODR = PIO_PB4; // Set PB4, high state, normal mode
-		if(ch==2) PIOB->PIO_SODR = PIO_PB7; // Set PB7, high state, normal mode
-	}else if(sleep_state==0){ // Go to Sleep mode
-		if(ch==1) PIOB->PIO_CODR = PIO_PB4; // Clear PB4, low state, sleep mode
-		if(ch==2) PIOB->PIO_CODR = PIO_PB7; // Clear PB7, low state, sleep mode
-	}
+// Modified to write the sleep pin to high or low depending on the passed boolean
+// True = Sleep 
+// False = Wake
+int lin_stack::sleep(bool sleep_state){
+	if(sleep_state){ // Go to Normal mode
+		digitalWrite(wake_pin, LOW);
+	} else {
+		digitalWrite(wake_pin, HIGH);
+	}	
 	delayMicroseconds(20); // According to TJA1021 datasheet this is needed for propper working
-	return 1;
-}
-
-int lin_stack::sleep_config(byte serial_No){
-	if(serial_No==1){ // When using LIN1 channel - usign Serial1 and pin PB4 for Sleep
-		PIOB->PIO_PER = PIO_PB4; // enable PIO register on pin PB4
-		PIOB->PIO_OER = PIO_PB4; // set PB4 as output
-		PIOB->PIO_PUDR = PIO_PB4; // disable pull-up
-		ch=1; // saved as private variable, used for determening Serial port
-	}else if(serial_No==2){ // When using LIN2 channel - usign Serial2 and pin PB7 for Sleep
-		PIOB->PIO_PER = PIO_PB7; // enable PIO register on pin PB7
-		PIOB->PIO_OER = PIO_PB7; // set PB7 as output
-		PIOB->PIO_PUDR = PIO_PB7; // disable pull-up
-		ch=2; // saved as private variable, used for determening Serial port
-	}
 	return 1;
 }
 
