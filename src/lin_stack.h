@@ -35,16 +35,16 @@
 #include <Arduino.h>
 
 /*
-	Please, read Getting Started Guide firts.
+	Please, read Getting Started Guide first.
 */
 
 class lin_stack
 {
 	public:
 	// Constructors
-	lin_stack(byte Ch); // Constructor for Master Node
-	lin_stack(byte Ch, byte ident); // Constructor for Slave Node
-	
+	lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def); // Master node constructor--doesn't need identity 
+	lin_stack(uint8_t serial_ch, uint8_t wake, byte ident, float baud_def); //Slave node constructor with ID
+
 	// Methods
 	
 	// Writing data to bus
@@ -58,12 +58,12 @@ class lin_stack
 	
 	// Private methods and variables
 	private:
-	const unsigned long bound_rate = 10417; // 10417 is best for LIN Interface, most device should work
-	const unsigned int period = 96; // in microseconds, 1s/10417
+	unsigned long baud_rate = 10416; 	// baud rate for the LIN interface, defaults to 10417
+	unsigned int period = 96; 			// calculated period, in mircoseconds, based on baud
 	byte ch = 0; // which channel should be used
-	byte identByte; // user defined Identification Byte
-	int sleep(byte sleep_state); // method for controlling transceiver modes (0 - sleep, 1 - normal)
-	int sleep_config(byte serial_No); // configuration of sleep pins
+	byte identByte; // user defined Identification Byte.
+	byte wakePin; // user defined pin for controlling wake function.
+	int sleep(bool sleep_state); // method for controlling transceiver modes (0 - sleep, 1 - normal)
 	int serial_pause(int no_bits); // for generating Synch Break
 	boolean validateParity(byte ident); // for validating Identification Byte, can be modified for validating parity
 	boolean validateChecksum(byte data[], byte data_size); // for validating Checksum Byte
