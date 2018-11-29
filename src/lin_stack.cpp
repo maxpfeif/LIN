@@ -27,7 +27,7 @@
  *  Can be modified for any Arduino board with UART available and any LIN slave.
  *  
  *	Forked from Blaž Pongrac B.S., RoboSap, Institute of Technology, Ptuj (www.robosap-institut.eu)
- *	Authored by MAX PFEIFFER, September 2018.   
+ *	Modified by MAX PFEIFFER, September 2018.   
  */ 
 
 #include <lin_stack.h>
@@ -59,7 +59,7 @@ lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, byte ident, float baud_def
 	identByte = ident; // Saving the identy to the private variable
 	baud_rate = baud_def;	// Save the baud rate to a private var 
 	period = int(baud_rate/108.5);	// calculate the period from baud rate  
-	sleep(FALSE);	// Initialize the transciever in wake state
+	sleep(false);	// Initialize the transciever in wake state
 }
 
 // Initialize the lin_stack object with just the channel and wakeup pin
@@ -68,7 +68,7 @@ lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def) {
 	wakePin = wake; // Saving the wake pin to a private variable 
 	baud_rate = baud_def;	// Save the baud rate to a private var 
 	period = int(baud_rate/108.5);	// calculate the period from baud rate  
-	sleep(FALSE); //Initialize the transciever in wake state 
+	sleep(false); //Initialize the transciever in wake state 
 }
 
 /*-----------------------------------------------------------------------------------*/ 
@@ -83,7 +83,7 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 	suma = suma + 1;
 	byte checksum = 255 - suma;
 	// Start interface
-	sleep(FALSE); // wakeup the device 
+	sleep(false); // wakeup the device 
 
 	// Synch Break -- need this as the beginning of the LIN frame 
 	serial_pause(13);
@@ -118,7 +118,7 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 		Serial4.write(checksum);
 		Serial4.end();
 	}
-	sleep(TRUE); // Go to Sleep mode
+	sleep(true); // Go to Sleep mode
 	return 1;
 }
 
@@ -126,7 +126,7 @@ int lin_stack::writeRequest(byte ident){
 	// Create Header
 	byte header[2]= {0x55, ident}; // ident is the identy of the device you wish to receive data from 
 	// Start interface
-	sleep(FALSE); // Wakeup the transciever 
+	sleep(false); // Wakeup the transciever 
 	// Synch Break
 	serial_pause(13);
 	// Send data via Serial interface
@@ -147,7 +147,7 @@ int lin_stack::writeRequest(byte ident){
 		Serial4.write(header,2);
 		Serial4.end();
 	}
-	sleep(TRUE); // Go to Sleep mode
+	sleep(true); // Go to Sleep mode
 	return 1;
 }
 
@@ -158,7 +158,7 @@ int lin_stack::writeResponse(byte data[], byte data_size){
 	suma = suma + 1;
 	byte checksum = 255 - suma;
 	// Start interface
-	sleep(FALSE); // Go to Normal mode
+	sleep(false); // Go to Normal mode
 	// Send data via Serial interface
 	if(ch==1){ 							// if we are using serial1
 		Serial1.begin(baud_rate); 		// initialize the port at the correct rate 
@@ -181,13 +181,13 @@ int lin_stack::writeResponse(byte data[], byte data_size){
 		Serial4.write(checksum);
 		Serial4.end();
 	}
-	sleep(TRUE); // Go to Sleep mode
+	sleep(true); // Go to Sleep mode
 	return 1;
 }
 
 int lin_stack::writeStream(byte data[], byte data_size){
 	// Start interface
-	sleep(FALSE); // Go to Normal mode
+	sleep(false); // Go to Normal mode
 	// Synch Break
 	serial_pause(13);
 	// Send data via Serial interface
@@ -208,7 +208,7 @@ int lin_stack::writeStream(byte data[], byte data_size){
 		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
 		Serial4.end(); 
 	}
-	sleep(TRUE); // Go to Sleep mode
+	sleep(true); // Go to Sleep mode
 	return 1;
 }
 
@@ -351,13 +351,13 @@ int lin_stack::serial_pause(int no_bits){
 }
 
 // Modified to write the sleep pin to high or low depending on the passed boolean
-// True = Sleep 
-// False = Wake
+// true = Sleep 
+// false = Wake
 int lin_stack::sleep(bool sleep_state){
 	if(sleep_state){ // Go to Normal mode
-		digitalWrite(wake_pin, LOW);
+		digitalWrite(wakePin, LOW);
 	} else {
-		digitalWrite(wake_pin, HIGH);
+		digitalWrite(wakePin, HIGH);
 	}	
 	delayMicroseconds(20); // According to TJA1021 datasheet this is needed for propper working
 	return 1;
