@@ -1,4 +1,4 @@
-/*  Copyright (c) 2016 Macchina
+/*  Original Copyright (c) 2016 Macchina
  *
  *  Permission is hereby granted, free of charge, to any person obtaining
  *  a copy of this software and associated documentation files (the
@@ -19,7 +19,7 @@
  *  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- *  LIN STACK for MCP2004 
+ *  LIN STACK for MCP2004/MCP2003
  *  v1.0
  *
  *  Short description: 
@@ -68,7 +68,7 @@ lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def) {
 	wakePin = wake; // Saving the wake pin to a private variable 
 	baud_rate = baud_def;	// Save the baud rate to a private var 
 	period = int(baud_rate/108.5);	// calculate the period from baud rate  
-	sleep(false); //Initialize the transciever in wake state 
+	sleep(true); //Initialize the transciever in sleeep state 
 }
 
 /*-----------------------------------------------------------------------------------*/ 
@@ -83,11 +83,13 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 	suma = suma + 1;
 	byte checksum = 255 - suma;
 	// Start interface
-	sleep(false); // wakeup the device 
+	sleep(false); 
 
-	// Synch Break -- need this as the beginning of the LIN frame 
-	serial_pause(13);
+	delayMicroseconds(100);	
 
+	// Synch Break -- need this as the beginning of the LIN frame.. also need recessive bit?s 
+	serial_pause(13); 
+/*
 	// Send data via Serial interface, depending on which serial port is being used 
 	if(ch==1){						// If serial channel = 1
 		Serial1.begin(baud_rate); 	// Begin serial at the lin_stack's baud 
@@ -104,20 +106,23 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 		Serial2.write(checksum);
 		Serial2.end(); 
 	} else if(ch==3){
-		Serial3.begin(baud_rate);	
+	*/	
+		Serial3.begin(baud_rate);
 		Serial3.write(0x55);	
 		Serial3.write(ident);
 		for(int i=0;i<data_size;i++) Serial3.write(data[i]);
 		Serial3.write(checksum);
 		Serial3.end();
+	/*	
 	} else if(ch==4){				
-		Serial4.begin(baud_rate);	
+		Serial4.begin(baud_rate);
 		Serial4.write(0x55);		
 		Serial4.write(ident);
 		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
 		Serial4.write(checksum);
 		Serial4.end();
 	}
+	*/
 	sleep(true); // Go to Sleep mode
 	return 1;
 }
@@ -224,6 +229,7 @@ int lin_stack::setSerial(){ // Only needed when receiving signals, note there ar
 	} else if(ch==4){
 		Serial4.begin(baud_rate);
 	}
+	return 1;
 }
 
 int lin_stack::read(byte data[], byte data_size){
@@ -332,18 +338,20 @@ int lin_stack::readStream(byte data[],byte data_size){
 
 int lin_stack::serial_pause(int no_bits){
 	// Calculate delay needed for 13 bits, depends on baud 
-	unsigned int del = period*no_bits; // delay for number of bits (no-bits) in microseconds, depends on period
-	if(ch=1){
+	uint16_t del = period*no_bits; // delay for number of bits (no-bits) in microseconds, depends on period
+	Serial.print("Delay in microseconds should be; "); Serial.println(del);
+	if(ch==1){
 		// tx is pin 1 
-		digitalWrite(1, LOW); // should be able to pull this low with out initializing the pin...
+		digitalWrite(1, LOW); 
 		delayMicroseconds(del); // delay
-	}else if(ch=2){
+	}else if(ch==2){
 		digitalWrite(10, LOW);
 		delayMicroseconds(del); // delay
-	} else if(ch=3){
-		digitalWrite(8, LOW);
+	} else if(ch==3){
+		digitalWrite(8, LOW); // not sure whether or not this is working, but the delay could be problematic 
 		delayMicroseconds(del);
-	} else if(ch=4){
+		digitalWrite(8, HIGH);
+	} else if(ch==4){
 		digitalWrite(32, LOW);
 		delayMicroseconds(del);
 	}
@@ -354,12 +362,11 @@ int lin_stack::serial_pause(int no_bits){
 // true = Sleep 
 // false = Wake
 int lin_stack::sleep(bool sleep_state){
-	if(sleep_state){ // Go to Normal mode
-		digitalWrite(wakePin, LOW);
+	if(sleep_state){ // Go to sleep if true
+		digitalWrite(wakePin, 0);
 	} else {
-		digitalWrite(wakePin, HIGH);
+		digitalWrite(wakePin, 1); // CS is active high  
 	}	
-	delayMicroseconds(20); // According to TJA1021 datasheet this is needed for propper working
 	return 1;
 }
 
