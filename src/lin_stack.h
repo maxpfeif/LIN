@@ -34,19 +34,23 @@
 
 #include <Arduino.h>
 
-/*
-	Please, read Getting Started Guide first.
-*/
 
 class lin_stack
 {
 	public:
 	// Constructors
-	lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def); // Master node constructor--doesn't need identity 
-	lin_stack(uint8_t serial_ch, uint8_t wake, byte ident, float baud_def); //Slave node constructor with ID
+	lin_stack(float baud_def); // Master node constructor--doesn't need identity 
+	lin_stack(byte ident, float baud_def); //Slave node constructor with ID
+
+	// LIN message structure 
+	struct lin_msg{
+		uint8_t pid;  	// 8-bit PID for the LIN transmission 
+		uint8_t len;  	// length of the lin message 
+		uint8_t data[]; // lin message data 
+	};
+
 
 	// Methods
-	
 	// Writing data to bus
 	int write(byte add, byte data[], byte data_size); // write whole package
 	int writeRequest(byte add); // Write header only

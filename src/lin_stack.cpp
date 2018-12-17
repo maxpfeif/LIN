@@ -49,27 +49,25 @@
    Checksum - inverted 256 checksum; data bytes are sumed up and then inverted
 */
 
+
+// LIN MESSAGE CONSTRUCTORS 
+
 /*-----------------------------------------------------------------------------------*/ 
 
 // NEW CONSTRUCTORS
 // Initialize the lin_stack object with the desired serial channel, wakeup pin and identity. 
-lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, byte ident, float baud_def){
-	ch = serial_ch; // Saving the serial channel to a private variable 
-	wakePin = wake; // Saving the wake pin to a private variable  
+lin_stack::lin_stack(byte ident, float baud_def){
 	identByte = ident; // Saving the identy to the private variable
 	baud_rate = baud_def;	// Save the baud rate to a private var 
 	period = int(baud_rate/108.5);	// calculate the period from baud rate  
-	sleep(false);	// Initialize the transciever in wake state
 }
 
 // Initialize the lin_stack object with just the channel and wakeup pin
-lin_stack::lin_stack(uint8_t serial_ch, uint8_t wake, float baud_def) {
-	ch = serial_ch; // Saving the serial channel to a private variable 
-	wakePin = wake; // Saving the wake pin to a private variable 
+lin_stack::lin_stack(float baud_def) {
 	baud_rate = baud_def;	// Save the baud rate to a private var 
 	period = int(baud_rate/108.5);	// calculate the period from baud rate  
-	sleep(true); //Initialize the transciever in sleeep state 
 }
+
 
 /*-----------------------------------------------------------------------------------*/ 
 // TODO: ADJUST THESE TO CONFORM TO NEW CONFOGIURATIONS 
@@ -82,246 +80,98 @@ int lin_stack::write(byte ident, byte data[], byte data_size){
 	for(int i=0;i<data_size;i++) suma = suma + data[i];
 	suma = suma + 1;
 	byte checksum = 255 - suma;
-	// Start interface
-	sleep(false); 
-
-	delayMicroseconds(100);	
-
+	// Need a delay between the wake from sleep and the delay. Not sure we want the sleep 
+	// actually. We should probably just wake the fucker up and have it on while the vehicle is 
+	// on. This business of putting this shit to sleep every time doesn't make sense.. 
+	// delayMicroseconds(100);	// thinking we might not need this 
 	// Synch Break -- need this as the beginning of the LIN frame.. also need recessive bit?s 
 	serial_pause(13); 
-/*
-	// Send data via Serial interface, depending on which serial port is being used 
-	if(ch==1){						// If serial channel = 1
-		Serial1.begin(baud_rate); 	// Begin serial at the lin_stack's baud 
-		Serial1.write(0x55); 		// write Synch Byte to serial
-		Serial1.write(ident); 		// write Identification Byte to serial
-		for(int i=0;i<data_size;i++) Serial1.write(data[i]); // write data to serial
-		Serial1.write(checksum); 	// write Checksum Byte to serial
-		Serial1.end(); 				// clear Serial config
-	}else if(ch==2){ 
-		Serial2.begin(baud_rate); 
-		Serial2.write(0x55); 
-		Serial2.write(ident); 
-		for(int i=0;i<data_size;i++) Serial2.write(data[i]); 
-		Serial2.write(checksum);
-		Serial2.end(); 
-	} else if(ch==3){
-	*/	
-		Serial3.begin(baud_rate);
-		Serial3.write(0x55);	
-		Serial3.write(ident);
-		for(int i=0;i<data_size;i++) Serial3.write(data[i]);
-		Serial3.write(checksum);
-		Serial3.end();
-	/*	
-	} else if(ch==4){				
-		Serial4.begin(baud_rate);
-		Serial4.write(0x55);		
-		Serial4.write(ident);
-		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
-		Serial4.write(checksum);
-		Serial4.end();
-	}
-	*/
-	sleep(true); // Go to Sleep mode
+	// Send the data using the Serial 3 interface. 
+	Serial3.begin(baud_rate);
+	Serial3.write(0x55);	
+	Serial3.write(ident);
+	for(int i=0;i<data_size;i++) Serial3.write(data[i]);
+	Serial3.write(checksum);
+	Serial3.end();
 	return 1;
 }
 
+// Writes just the PID to the bus 
 int lin_stack::writeRequest(byte ident){
 	// Create Header
 	byte header[2]= {0x55, ident}; // ident is the identy of the device you wish to receive data from 
-	// Start interface
-	sleep(false); // Wakeup the transciever 
 	// Synch Break
 	serial_pause(13);
 	// Send data via Serial interface
-	if(ch==1){ 						// if we are using channel 1 
-		Serial1.begin(baud_rate);	// configure serial at desired baud rate
-		Serial1.write(header,2); 	// write data to the serial port using recursive write 
-		Serial1.end(); 				// clear Serial config
-	}else if(ch==2){
-		Serial2.begin(baud_rate); 
-		Serial2.write(header,2); 
-		Serial2.end();
-	} else if(ch==3) {
-		Serial3.begin(baud_rate);
-		Serial3.write(header,2);
-		Serial3.end();
-	} else if (ch==4){
-		Serial4.begin(baud_rate);
-		Serial4.write(header,2);
-		Serial4.end();
-	}
-	sleep(true); // Go to Sleep mode
+	Serial3.begin(baud_rate);
+	Serial3.write(header,2);
+	Serial3.end();
 	return 1;
 }
 
+// Write a response to a PID, this includes the checksum?  
 int lin_stack::writeResponse(byte data[], byte data_size){
 	// Calculate checksum
 	byte suma = 0;
 	for(int i=0;i<data_size;i++) suma = suma + data[i];
 	suma = suma + 1;
 	byte checksum = 255 - suma;
-	// Start interface
-	sleep(false); // Go to Normal mode
-	// Send data via Serial interface
-	if(ch==1){ 							// if we are using serial1
-		Serial1.begin(baud_rate); 		// initialize the port at the correct rate 
-		Serial1.write(data, data_size); // write data to serial
-		Serial1.write(checksum); // write data to serial
-		Serial1.end(); // clear Serial config
-	}else if(ch==2){ 
-		Serial2.begin(baud_rate);
-		Serial2.write(data, data_size); 
-		Serial2.write(checksum); 
-		Serial2.end(); 
-	} else if(ch==3) {
-		Serial3.begin(baud_rate);
-		Serial3.write(data,data_size);
-		Serial3.write(checksum);
-		Serial3.end();
-	} else if(ch==4) {
-		Serial4.begin(baud_rate);
-		Serial4.write(data,data_size);
-		Serial4.write(checksum);
-		Serial4.end();
-	}
-	sleep(true); // Go to Sleep mode
+	Serial3.begin(baud_rate);
+	Serial3.write(data,data_size);
+	Serial3.write(checksum);
+	Serial3.end();
 	return 1;
 }
 
+// Write a stream--without the checksum though.. 
 int lin_stack::writeStream(byte data[], byte data_size){
-	// Start interface
-	sleep(false); // Go to Normal mode
 	// Synch Break
 	serial_pause(13);
-	// Send data via Serial interface
-	if(ch==1){ 
-		Serial1.begin(baud_rate);
-		for(int i=0;i<data_size;i++) Serial1.write(data[i]);
-		Serial1.end();
-	}else if(ch==2){
-		Serial2.begin(baud_rate); 
-		for(int i=0;i<data_size;i++) Serial2.write(data[i]);
-		Serial2.end(); 
-	} else if(ch==3){
-		Serial3.begin(baud_rate);
-		for(int i=0;i<data_size;i++) Serial3.write(data[i]);
-		Serial3.end(); 
-	} else if(ch==4){
-		Serial4.begin(baud_rate);
-		for(int i=0;i<data_size;i++) Serial4.write(data[i]);
-		Serial4.end(); 
-	}
-	sleep(true); // Go to Sleep mode
+	Serial3.begin(baud_rate);
+	for(int i=0;i<data_size;i++) Serial3.write(data[i]);
+	Serial3.end(); 
+
 	return 1;
 }
 
 // READ methods
 // Read LIN traffic and then proces it.
 int lin_stack::setSerial(){ // Only needed when receiving signals, note there are no internall pull ups here now, hardware may need one. 
-	if(ch==1){ 
-		Serial1.begin(baud_rate); 
-	} else if(ch==2){ 
-		Serial2.begin(baud_rate);
-	} else if(ch==3){
-		Serial3.begin(baud_rate);
-	} else if(ch==4){
-		Serial4.begin(baud_rate);
-	}
+	Serial3.begin(baud_rate);
 	return 1;
 }
 
+// Reads data from the bus, including the checksum. 
 int lin_stack::read(byte data[], byte data_size){
-	byte rec[data_size+3];
-	if(ch==1){ // For LIN1 or Serial1
-		if(Serial1.read() != -1){ // Check if there is an event on LIN bus
-			Serial1.readBytes(rec,data_size+3);
-			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
-				for(int j=0;j<data_size;j++){
-				data[j] = rec[j+2];
-				}
-				return 1;
-			}else{
-				return -1;
-			}	
-		}
-	}else if(ch==2){ 
-		if(Serial2.read() != -1){ 
-			Serial2.readBytes(rec,data_size+3);
-			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
-				for(int j=0;j<data_size;j++){
-				data[j] = rec[j+2];
-				}
-				return 1;
-			}else{
-				return -1;
-			}	
-		}
-	}else if(ch==3){ 
-		if(Serial3.read() != -1){ 
-			Serial3.readBytes(rec,data_size+3);
-			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
-				for(int j=0;j<data_size;j++){
-				data[j] = rec[j+2];
-				}
-				return 1;
-			}else{
-				return -1;
-			}	
-		}
-	}else if(ch==4){ 
-		if(Serial4.read() != -1){ 
-			Serial4.readBytes(rec,data_size+3);
-			if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
-				for(int j=0;j<data_size;j++){
-				data[j] = rec[j+2];
-				}
-				return 1;
-			}else{
-				return -1;
-			}	
-		}
-	}
+	byte rec[data_size+3];						// How much data are we looking for? +3 
+	if(Serial3.read() != -1){ 
+		Serial3.readBytes(rec,data_size+3);		// Reads bytes from the serial bus 
+		
 
+		// This probabl has a problem when reading LIN from the heater 
+		if((validateParity(rec[1]))&(validateChecksum(rec,data_size+3))){
+			for(int j=0;j<data_size;j++){
+			data[j] = rec[j+2];
+			}
+			return 1;
+		}else{
+			return -1;
+		}	
+	}
 	return 0;
 }
 
+// Reads the data stream 
 int lin_stack::readStream(byte data[],byte data_size){
 	byte rec[data_size];
-	if(ch==1){ // For LIN1 or Serial1
-		if(Serial1.read() != -1){ // Check if there is an event on LIN bus
-			Serial1.readBytes(rec,data_size);
-			for(int j=0;j<data_size;j++){
-				data[j] = rec[j];
-			}
-			return 1;
+	if(Serial3.read() != -1){ 
+		Serial3.readBytes(data,data_size);
+		for(int j=0;j<data_size;j++){
+			data[j] = rec[j];
 		}
-	}else if(ch==2){ 
-		if(Serial2.read() != -1){ 
-			Serial2.readBytes(data,data_size);
-			for(int j=0;j<data_size;j++){
-				data[j] = rec[j];
-			}
-			return 1;
-		}
-	}else if(ch==3){ 
-		if(Serial3.read() != -1){ 
-			Serial3.readBytes(data,data_size);
-			for(int j=0;j<data_size;j++){
-				data[j] = rec[j];
-			}
-			return 1;
-		}
-	}else if(ch==4){ 
-		if(Serial4.read() != -1){ 
-			Serial4.readBytes(data,data_size);
-			for(int j=0;j<data_size;j++){
-				data[j] = rec[j];
-			}
-			return 1;
-		}
+		return 1;
 	}
+
 	return 0;
 }
 
@@ -340,36 +190,13 @@ int lin_stack::serial_pause(int no_bits){
 	// Calculate delay needed for 13 bits, depends on baud 
 	uint16_t del = period*no_bits; // delay for number of bits (no-bits) in microseconds, depends on period
 	Serial.print("Delay in microseconds should be; "); Serial.println(del);
-	if(ch==1){
-		// tx is pin 1 
-		digitalWrite(1, LOW); 
-		delayMicroseconds(del); // delay
-	}else if(ch==2){
-		digitalWrite(10, LOW);
-		delayMicroseconds(del); // delay
-	} else if(ch==3){
-		digitalWrite(8, LOW); // not sure whether or not this is working, but the delay could be problematic 
-		delayMicroseconds(del);
-		digitalWrite(8, HIGH);
-	} else if(ch==4){
-		digitalWrite(32, LOW);
-		delayMicroseconds(del);
-	}
+	digitalWrite(8, LOW); // not sure whether or not this is working, but the delay could be problematic 
+	delayMicroseconds(del);
+	digitalWrite(8, HIGH);
 	return 1;
 }
 
-// Modified to write the sleep pin to high or low depending on the passed boolean
-// true = Sleep 
-// false = Wake
-int lin_stack::sleep(bool sleep_state){
-	if(sleep_state){ // Go to sleep if true
-		digitalWrite(wakePin, 0);
-	} else {
-		digitalWrite(wakePin, 1); // CS is active high  
-	}	
-	return 1;
-}
-
+// If the byte coming in is the same as the ident byte for this instance 
 boolean lin_stack::validateParity(byte ident) {
 	if(ident == identByte)
 		return true;
@@ -387,3 +214,4 @@ boolean lin_stack::validateChecksum(unsigned char data[], byte data_size){
 	else
 		return false;
 } 
+
